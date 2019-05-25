@@ -4,6 +4,9 @@
 
 'use strict';
 
+//const CACHE_EXPIRE =  24 * 60 * 60 * 1000; // 24h
+const CACHE_EXPIRE =  10 * 60 * 1000; // 10min
+
 let g_aosp_url = null;
 let g_versions = null;
 
@@ -16,7 +19,7 @@ function parse_aosp_url(url) {
   let path_url = tmp[1];
 
   tmp = path_url.split("/");
-  if (tmp.length < 4) {
+  if (tmp.length < 3) {
     return null;
   }
 
@@ -38,6 +41,9 @@ function parse_aosp_url(url) {
     },
     get_version_url: function(version) { 
       return this.base_url + "/+/refs/tags/" + version + "/" + this.path_url;
+    },
+    get_master_url: function() {
+      return this.base_url + "/+/refs/heads/" + "master" + "/" + this.path_url;
     }
   };
 }
@@ -46,7 +52,12 @@ function onListItemClick(e) {
   let version = e.target.innerHTML;
 
   if (g_aosp_url && version) {
-    let url = g_aosp_url.get_version_url(version);
+    let url;
+    if (version == "master") {
+      url = g_aosp_url.get_master_url();
+    } else {
+      url = g_aosp_url.get_version_url(version);
+    }
     //alert("onItemClicked: " + url);
 
     chrome.tabs.query({active: true, currentWindow: true}, function(tabs) {
@@ -74,6 +85,7 @@ function refreshUI(versions) {
   const ul = document.getElementById("versionList");
   if (versions && versions.length > 0) {
     ul.innerHTML = "";
+    versions.splice(0, 0, 'master'); // versions.insert(0, 'master');
     versions.forEach(version => {
       let li = document.createElement("li");
       let a = document.createElement("a");
@@ -90,45 +102,60 @@ function refreshUI(versions) {
   }
 }
 
+function onVersionsLoad(versions) {
+  g_versions = versions;
+  if (document.getElementById("filter").checked) {
+    refreshUI(g_versions.filter(v => { return v.endsWith("_r1"); } ));
+  } else {
+    refreshUI(g_versions);
+  }
+}
+
+function parse_refs_index(data) {
+  let versions = [];
+  data.split("\n").forEach(line => {
+    let match = line.match(/^[^ ]* refs\/tags\/(.*)$/);
+    if (match) {
+      let version = match[1].trim();
+      if (version.match(/^android-\d+\.\d+\.\d+_r\d+$/i)) {
+        versions.push(version);
+      }
+    }
+  });
+  versions.reverse();
+  return versions;
+}
+
 chrome.tabs.query({active: true, currentWindow: true}, function(tabs) {
   g_aosp_url = parse_aosp_url(tabs[0].url);
   if (g_aosp_url) {
     document.getElementById("state").innerHTML = "Fetching..";
-    fetch(g_aosp_url.get_refs_index_url())
-      .then(resp => resp.text())
-      .then(data => {
-        //alert("Got index");
-        let versions = [];
-        data.split("\n").forEach(line => {
-          let match = line.match(/^[^ ]* refs\/tags\/(.*)$/);
-          if (match) {
-            let version = match[1].trim();
-            if (version.match(/^android-\d+\.\d+\.\d+_r\d+$/i)) {
-              versions.push(version);
-            }
+    const index_url = g_aosp_url.get_refs_index_url();
+
+    chrome.storage.local.get(index_url, function(result) {
+      let cache = typeof(result[index_url]) != "undefined" ? result[index_url] : null;
+      let valid = cache != null 
+                 && typeof(cache.versions != 'undefined') 
+                 && typeof(cache.time != 'undefined') 
+                 && new Date().getTime() < cache.time + CACHE_EXPIRE;
+      //alert("get cache by key: " + index_url + ", value=" + cache + ", valid=" + valid);
+      let versions = valid ? cache.versions : null;
+      if (versions && versions.length > 0) {
+        onVersionsLoad(versions);
+      } else {
+        fetch(index_url).then(resp => resp.text()).then(data => {
+          let versions = parse_refs_index(data);
+          let cache = {};
+          cache[index_url] = {
+            versions: versions,
+            time: new Date().getTime()
           }
-        });
-        versions.reverse();
-        g_versions = versions;
-        if (document.getElementById("filter").checked) {
-          refreshUI(g_versions.filter(v => { return v.endsWith("_r1"); } ));
-        } else {
-          refreshUI(g_versions);
-        }
-      });
+          chrome.storage.local.set(cache, function() {});
+          onVersionsLoad(versions);
+        }).cache(e => alert("Error: " + e));
+      }
+    });
   } else {
     alert("can not parse url " + tabs[0].url);
   }
 });
-
-let changeColor = document.getElementById('changeColor');
-
-chrome.storage.sync.get('color', function(data) {
-  changeColor.style.backgroundColor = data.color;
-  changeColor.setAttribute('value', data.color);
-});
-
-changeColor.onclick = function(element) {
-  let color = element.target.value;
- 
-};
