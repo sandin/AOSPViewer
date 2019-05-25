@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <style>
+      * {
+        margin: 0;
+        padding: 0;
+      }
+      .header {
+        display: flex;
+        padding: 10px;
+        border-bottom: 2px solid #41d81b;
+      }
+      h3 {
+        font-size: 14px;
+        font-weight: bold;
+        color: #888;
+        flex: 1;
+      }
+      ul {
+        list-style: none inside none;
+        outline: none;
+        min-width: 200px;
+      }
+      li {
+        border-bottom: 1px solid #cccccc;
+      }
+      a {
+        padding: 5px 10px;
+        cursor: pointer;
+        display: block;
+      }
+      a:hover,
+      a:active
+      {
+        background: #cccccc;
+      }
+      #searchInput {
+        margin: 10px;
+        padding: 2px 10px;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="header">
+      <h3>Switch Version: </h3>
+      <div>r1 only:<input id="filter" checked="checked" type="checkbox" /></div>
+    </div>
+    <ul id="versionList">
+      <li><a id="state">Loading...</a></li>
+    </ul>
+    <script src="popup.js"></script>
+  </body>
+</html>
