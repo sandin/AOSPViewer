@@ -4,8 +4,8 @@
 
 'use strict';
 
-//const CACHE_EXPIRE =  24 * 60 * 60 * 1000; // 24h
-const CACHE_EXPIRE =  10 * 60 * 1000; // 10min
+const CACHE_EXPIRE =  24 * 60 * 60 * 1000; // 24h
+//const CACHE_EXPIRE =  10 * 60 * 1000; // 10min
 
 let g_aosp_url = null;
 let g_versions = null;
@@ -19,17 +19,20 @@ function parse_aosp_url(url) {
   let path_url = tmp[1];
 
   tmp = path_url.split("/");
-  if (tmp.length < 3) {
-    return null;
+  let type = null; // "tags", "heads", null
+  let version = null;
+  if (tmp[0] == "refs") {
+    type = tmp[1];         
+    version = tmp[2]; 
+    path_url = tmp.slice(3).join("/");
+  } else { 
+    version = tmp[0] 
+    path_url = tmp.slice(1).join("/");
   }
-
-  let type = tmp[1];         
-  let version = tmp[2]; 
-  //alert("type=" + type + ", version=" + version);
-  path_url = tmp.slice(3).join("/");
   //alert("path_url=" + path_url);
 
   // eg: "https://android.googlesource.com/platform/art/+/refs/tags/android-4.4.3_r1/runtime/dex_file.cc"
+  // or: "https://android.googlesource.com/platform/art/+/android-4.4.3_r1/runtime/dex_file.cc"
   return {
     base_url: base_url, // "https://android.googlesource.com/platform/art"
     type: type,         // "tags" 
